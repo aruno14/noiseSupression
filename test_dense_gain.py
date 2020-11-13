@@ -20,7 +20,7 @@ def audioToTensor(filepath:str):
     audioSR = tf.get_static_value(audioSR)
     audio = tf.squeeze(audio, axis=-1)
     frame_step = int(audioSR * 0.008)#16000*0.008=128
-    spectrogram = tf.signal.stft(audio, frame_length=frame_length, frame_step=frame_step)#->31hz, si 512 -> 64hz
+    spectrogram = tf.signal.stft(audio, frame_length=frame_length, frame_step=frame_step)
     spect_image = tf.math.imag(spectrogram)
     spect_real = tf.math.real(spectrogram)
     spect_sign = tf.sign(spect_real)
