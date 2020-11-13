@@ -12,10 +12,9 @@ frame_length = 512
 image_width = 128
 model_name = "noise_model_dense_image"
 batch_size = 32
-epochs = 1
+epochs = 10
 
 def audioToTensor(filepath:str):
-    #print("audioToTensor:filepath:", filepath)
     audio_binary = tf.io.read_file(filepath)
     audio, audioSR = tf.audio.decode_wav(audio_binary)
     audioSR = tf.get_static_value(audioSR)
@@ -26,10 +25,6 @@ def audioToTensor(filepath:str):
     spect_real = tf.math.real(spectrogram)
     spect_sign = tf.sign(spect_real)
     spect_real = tf.abs(spect_real)
-    spect_real = tf.math.log(spect_real)/tf.math.log(tf.constant(10, dtype=tf.float32))*20#decibels
-    spect_real = tf.where(tf.math.is_nan(spect_real), tf.zeros_like(spect_real), spect_real)
-    spect_real = tf.where(tf.math.is_inf(spect_real), tf.zeros_like(spect_real), spect_real)
-
     partsCount = len(range(0, len(spectrogram)-image_width, image_width))
     parts = np.zeros((partsCount, image_width, int(frame_length/2+1)))
     for i, p in enumerate(range(0, len(spectrogram)-image_width, image_width)):
@@ -39,7 +34,7 @@ def audioToTensor(filepath:str):
 
 def spectToOscillo(spect_real, spect_sign, spect_image, audioSR):
     frame_step = int(audioSR * 0.008)
-    spect_real = pow(10, spect_real/20)#power value
+    #spect_real = pow(10, spect_real/20)#power value
     spect_real*=spect_sign
     spect_all = tf.complex(spect_real, spect_image)
     inverse_stft = tf.signal.inverse_stft(spect_all, frame_length=frame_length, frame_step=frame_step, window_fn=tf.signal.inverse_stft_window_fn(frame_step))
@@ -71,7 +66,7 @@ class MySequence(tf.keras.utils.Sequence):
             path_noisy = path_clear.replace("clear", "noisy")
             spectNoisy, _, _, audioNoisySR, partsNoisy = audioToTensor(path_noisy)
             spectClear, _, _, audioClearSR, partsClear = audioToTensor(path_clear)
-            for k in range(0, len(spectNoisy)):
+            for k in range(0, len(partsNoisy)):
                 batch_x_train[current_size] = partsNoisy[k]
                 batch_y_train[current_size] = partsClear[k]
                 current_size+=1
@@ -99,8 +94,9 @@ else:
     tf.keras.utils.plot_model(model, to_file='model_dense_image.png', show_shapes=True)
 model.compile(loss='mse', metrics='mse', optimizer='adam')
 
+
 print('Train...')
-history = model.fit(MySequence(x_train, x_train_count, batch_size), epochs=epochs, steps_per_epoch=x_train_count//batch_size)
+history = model.fit(MySequence(x_train, x_train_count, batch_size), epochs=epochs, steps_per_epoch=(x_train_count//batch_size))
 model.save(model_name)
 
 metrics = history.history
@@ -109,6 +105,18 @@ plt.legend(['mse'])
 plt.savefig("learning-dense_image.png")
 plt.show()
 plt.close()
+
+
+print('Evaluate no prediction...')
+total_loss = 0
+for i, path_clear in enumerate(clear_files):
+    path_noisy = path_clear.replace("clear", "noisy")
+    spectNoisy, _, _, audioNoisySR, partsNoise = audioToTensor(path_noisy)
+    spectClear, _, _, audioClearSR, partsClear = audioToTensor(path_clear)
+    loss = np.mean(tf.keras.losses.mean_squared_error(spectClear, spectNoisy).numpy())
+    total_loss+=loss
+    print(path_noisy, "->", loss)
+print("total_loss:", total_loss/len(clear_files))
 
 print('Evaluate...')
 total_loss = 0
