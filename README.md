@@ -1,6 +1,8 @@
 # NoiseSupression
 A simple Noise Suppression Model based on RNN and implemented with TensorFlow.
 
+More details: https://aruno14.medium.com/when-your-boss-say-make-noise-suppression-system-8e82ee84afd7
+
 ## Dataset
 * https://github.com/breizhn/DNS-Challenge (~300Go)
 
