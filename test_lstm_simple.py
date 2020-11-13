@@ -8,11 +8,11 @@ import os
 import matplotlib.pyplot as plt
 
 block_length = 0.050#->500ms
-voice_max_length = int(0.5/block_length)#->3s
+voice_max_length = int(0.5/block_length)
 frame_length = 512
 model_name = "noise_model_lstm"
 batch_size = 32
-epochs = 1
+epochs = 10
 
 print("voice_max_length:", voice_max_length)
 def audioToTensor(filepath:str):
@@ -22,19 +22,16 @@ def audioToTensor(filepath:str):
     audioSR = tf.get_static_value(audioSR)
     audio = tf.squeeze(audio, axis=-1)
     frame_step = int(audioSR * 0.008)#16000*0.008=128
-    spectrogram = tf.signal.stft(audio, frame_length=frame_length, frame_step=frame_step)#->31hz, si 512 -> 64hz
+    spectrogram = tf.signal.stft(audio, frame_length=frame_length, frame_step=frame_step)
     spect_image = tf.math.imag(spectrogram)
     spect_real = tf.math.real(spectrogram)
     spect_sign = tf.sign(spect_real)
     spect_real = tf.abs(spect_real)
-    spect_real = tf.math.log(spect_real)/tf.math.log(tf.constant(10, dtype=tf.float32))*20#decibels
-    spect_real = tf.where(tf.math.is_nan(spect_real), tf.zeros_like(spect_real), spect_real)
-    spect_real = tf.where(tf.math.is_inf(spect_real), tf.zeros_like(spect_real), spect_real)
     return spect_real, spect_image, spect_sign, audioSR
 
 def spectToOscillo(spect_real, spect_sign, spect_image, audioSR):
     frame_step = int(audioSR * 0.008)
-    spect_real = pow(10, spect_real/20)#power value
+    #spect_real = pow(10, spect_real/20)#power value
     spect_real*=spect_sign
     spect_all = tf.complex(spect_real, spect_image)
     inverse_stft = tf.signal.inverse_stft(spect_all, frame_length=frame_length, frame_step=frame_step, window_fn=tf.signal.inverse_stft_window_fn(frame_step))
@@ -86,10 +83,10 @@ else:
     x = Multiply()([x, main_input[:,-1]])
     model = Model(inputs=main_input, outputs=x)
     tf.keras.utils.plot_model(model, to_file='model_lstm_simple.png', show_shapes=True)
-model.compile(loss='mse', metrics='mse', optimizer=tf.keras.optimizers.Adam(learning_rate=0.001))#Adam, SGD, Adagrad
+model.compile(loss='mse', metrics='mse', optimizer='adam')#Adam, SGD, Adagrad
 
 print('Train...')
-history = model.fit(MySequence(x_train, x_train_count, batch_size), epochs=epochs, steps_per_epoch=x_train_count//batch_size)
+history = model.fit(MySequence(x_train, x_train_count, batch_size), epochs=epochs, steps_per_epoch=(x_train_count//batch_size))
 model.save(model_name)
 
 metrics = history.history
